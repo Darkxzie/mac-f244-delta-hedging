@@ -1,0 +1,23 @@
+check,value,tolerance,passed,note
+"Put–call parity, max abs error",2.1316282072803006e-14,1e-10,True,41 spots x 4 maturities
+"Delta vs central finite difference, max abs error",2.0109869325324325e-10,1e-06,True,h = 1e-4
+"MC price under Q vs BS, z-score",-0.3518923835296602,3.0,True,"MC 4.6127 vs BS 4.6150, n=1,000,000"
+"Same estimator under P (mu=25%) is NOT the price, z-score",400.9459939070284,3.0,True,"MC 8.0108: pricing needs Q, not P"
+Ledger vs simulator P&L (c=0.0),0.0,1e-12,True,P&L = 1.349376
+Ledger vs simulator P&L (c=0.001),0.0,1e-12,True,P&L = 1.172645
+Ledger vs gains-form P&L (c=0),1.4210854715202004e-14,1e-12,True,
+"Cash bookkeeping vs gains form, 5000 paths, max diff",2.0961010704922955e-13,1e-09,True,
+tau->0: price -> payoff,5.002220859751105e-12,1e-06,True,
+tau->0: delta -> 1{S>K},0.0,1e-09,True,
+Deep ITM: C -> S - K e^{-rT},0.0,1e-08,True,
+Deep OTM: C -> 0,3.377917311277431e-116,1e-12,True,
+sigma->0: C -> (S - K e^{-rT})^+,0.0,1e-08,True,
+"No-arbitrage bounds; 0<=delta<=1, delta increasing in S",0.0,0,True,
+Deep OTM hedge (K=300): max |P&L|,3.727336694733437e-24,1e-08,True,"nothing to hedge, nothing to pay"
+"sigma=1%, N=1260: max |P&L| small",0.0003941104313298638,0.02,True,
+"Exact GBM: E[S_T] with 1 step, z",-1.2157831755324011,3,True,
+"Exact GBM: E[S_T] with 252 steps, z",-0.8614518988462683,3,True,
+"Exact GBM: Var(ln S_T) = sigma^2 T, z",0.8034938803235684,3,True,
+Refinement: log-log slope of P&L std vs N,-0.4931914595103419,"[-0.6,-0.4]",True,theory -1/2
+"Seed robustness: P&L std, seed 101 vs 202, z",2.473109155679877,3,True,0.4349 vs 0.4248
+"Correct sigma, daily, no costs: mean P&L = 0? z",0.5099894147856019,3,True,discrete hedging is unbiased to first order

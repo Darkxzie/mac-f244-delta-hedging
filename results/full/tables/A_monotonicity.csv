@@ -1,0 +1,6 @@
+stat,monotone_decreasing_in_N
+std,True
+rmse,True
+abs_mean,False
+abs_q05,True
+abs_es05,True

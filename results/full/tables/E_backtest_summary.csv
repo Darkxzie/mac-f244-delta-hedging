@@ -1,0 +1,2 @@
+n_windows_overlapping,n_windows_non_overlapping,r_assumed,cost_per_side,window_days,mean_pnl_over_premium,frac_positive,corr_pnl_vs_var_gap,mean_pnl_over_premium_nonoverlap,corr_nonoverlap,mean_cost_drag
+380,7,0.005,0.001,63,0.03300753911383265,0.6157894736842106,0.8711860671077089,-0.014260655435343274,0.9332927488318046,0.33962337943194765

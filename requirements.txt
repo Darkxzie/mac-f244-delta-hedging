@@ -1,0 +1,11 @@
+# Tested with Python 3.13.x and these versions (13 Nov 2026). Older recent versions should also work.
+numpy>=1.24        # tested 2.5.3
+scipy>=1.10        # tested 1.18.1
+pandas>=2.0        # tested 3.0.5
+matplotlib>=3.7    # tested 3.11.2
+# optional
+pytest>=7          # run the validation checks as tests
+jupyter            # open / re-execute notebooks/demo.ipynb
+nbformat
+nbconvert
+vega_datasets==0.9.0   # only to RE-create data/vega_stocks_monthly.csv (a copy is already in data/)

@@ -1,0 +1,168 @@
+% Viva preparation notes -- compile: latexmk -pdf viva_notes.tex
+\documentclass[10.5pt,a4paper]{article}
+\usepackage[a4paper,margin=2cm]{geometry}
+\usepackage[T1]{fontenc}\usepackage{lmodern}
+\usepackage{amsmath,amssymb,mathtools,booktabs,enumitem,microtype}
+\usepackage[hidelinks]{hyperref}
+\setlist{itemsep=1pt,topsep=2pt}
+\newcommand{\PnL}{\mathrm{PnL}_T}
+\title{Viva Notes: Delta Hedging of European Options\\\large MAC F244 project (topic 12) \textemdash{} for every group member}
+\date{Prepared 13 November 2026}
+\begin{document}\maketitle
+\noindent Every member should be able to answer \emph{any} question below, not only questions about their own slides.
+Numbers quoted are from \texttt{results/full/tables} (seed 2026, 40{,}000 paths).
+
+\tableofcontents
+
+\section{The story in plain English (memorise this)}
+We sell a call option. The buyer pays us a premium now; at maturity we owe $\max(S_T-K,0)$. If the stock rises a lot we lose a lot.
+To neutralise that risk we buy $\Delta$ shares, where $\Delta$ is how much the option's value moves per unit move in the stock. As the stock moves, $\Delta$ changes, so we must keep
+trading. Black--Scholes says: if you trade \emph{continuously}, pay \emph{no costs} and know the \emph{true volatility}, the premium is exactly enough to pay the
+option off in every scenario. We relax each of those three assumptions and measure what goes wrong. Coarse trading makes errors \emph{noisy}, at about $1/\sqrt N$. A wrong volatility makes errors
+\emph{biased}, and more trading cannot fix that. Costs make frequent trading \emph{expensive}, so there is a best frequency.
+
+\section{Symbols and units}
+\begin{tabular}{@{}lll@{}}\toprule
+Symbol & Meaning & Units\\\midrule
+$S_t$ & stock price at time $t$ & currency (we use $S_0=100$)\\
+$K$ & strike & currency\\
+$T,\ \tau=T-t$ & maturity, time remaining & years\\
+$r$ & continuously compounded risk-free rate & per year\\
+$\mu$ & real-world expected return (drift) & per year\\
+$\sigma$ & volatility of log returns & per $\sqrt{\text{year}}$\\
+$\sigma_h$ & volatility the hedger \emph{uses} & per $\sqrt{\text{year}}$\\
+$N,\ \Delta t=T/N$ & number of rebalances, interval & --, years\\
+$\phi_k$ & shares held after rebalancing at $t_k$ & shares\\
+$B_k$ & cash account after rebalancing at $t_k$ & currency\\
+$c$ & proportional cost per side (0.001 = 10 bp) & fraction of traded value\\
+$\Delta,\Gamma,\mathcal V$ & $\partial C/\partial S$, $\partial^2C/\partial S^2$, $\partial C/\partial\sigma$ & --, 1/currency, currency per unit $\sigma$\\\bottomrule
+\end{tabular}
+
+\section{Mathematics, step by step}
+\subsection{GBM and the two measures}
+$dS=\mu S\,dt+\sigma S\,dW$ under $\mathbb P$. Apply It\^o to $\ln S$: $d\ln S=(\mu-\tfrac12\sigma^2)dt+\sigma dW$, so
+$S_{t+\Delta t}=S_t\exp\{(\mu-\tfrac12\sigma^2)\Delta t+\sigma\sqrt{\Delta t}Z\}$ \emph{exactly}, for any $\Delta t$ (no Euler error).
+Under the risk-neutral measure $\mathbb Q$ (Girsanov, with market price of risk $\lambda=(\mu-r)/\sigma$), $dS=rS\,dt+\sigma S\,dW^{\mathbb Q}$. \textbf{Why both?}
+Prices are $\mathbb Q$-expectations of discounted payoffs. Hedging P\&L happens in the real world, so we simulate it under $\mathbb P$.
+The validation shows that the $\mathbb Q$-Monte-Carlo price matches BS ($z=-0.35$) and that the same estimator under $\mathbb P$ with $\mu=25\%$ does not ($z=401$).
+
+\subsection{It\^o's lemma, replication and the PDE}
+For $V(t,S)$: $dV=\big(V_t+\mu SV_S+\tfrac12\sigma^2S^2V_{SS}\big)dt+\sigma SV_S\,dW$.
+Hold the option and short $V_S$ shares: $\Pi=V-V_SS$, so $d\Pi=dV-V_SdS=(V_t+\tfrac12\sigma^2S^2V_{SS})dt$. This is riskless, so no-arbitrage requires $d\Pi=r\Pi\,dt$:
+\[V_t+rSV_S+\tfrac12\sigma^2S^2V_{SS}-rV=0,\quad V(T,S)=(S-K)^+.\]
+$\mu$ has disappeared, and that is why the price does not depend on expected returns. The solution is the BS formula (via Feynman--Kac, $V=e^{-r\tau}\mathbb E^{\mathbb Q}[(S_T-K)^+]$).
+
+\subsection{Price, delta and maturity}
+$d_{1,2}=\frac{\ln(S/K)+(r\pm\frac12\sigma^2)\tau}{\sigma\sqrt\tau}$, $C=SN(d_1)-Ke^{-r\tau}N(d_2)$, $\Delta=N(d_1)$, $\Gamma=\varphi(d_1)/(S\sigma\sqrt\tau)$, $\mathcal V=S\varphi(d_1)\sqrt\tau$.
+At $\tau\to0$, $d_1\to\pm\infty$ depending on whether $S\gtrless K$, so $\Delta\to\mathbf 1\{S>K\}$ and $C\to(S-K)^+$. The formula divides by $\sqrt\tau$, so the code handles $\tau=0$
+separately and never evaluates delta at $T$. Near maturity ATM, $\Gamma\sim1/\sqrt\tau$ blows up: this is where discrete hedging hurts most.
+Put--call parity $C-P=S-Ke^{-r\tau}$ is model-free (a forward contract), so it is an independent check.
+
+\subsection{Self-financing bookkeeping (derive this on the board)}
+Self-financing means that, between dates, no money enters or leaves except interest. At a rebalance the change in stock holding is paid for in cash:
+\begin{align*}
+t_0:&\quad B_0=V_0-\phi_0S_0-c|\phi_0|S_0\\
+t_k:&\quad B_k=B_{k-1}e^{r\Delta t}-(\phi_k-\phi_{k-1})S_k-c|\phi_k-\phi_{k-1}|S_k\\
+T:&\quad \PnL=B_{N-1}e^{r\Delta t}+\phi_{N-1}S_T(1-c)-(S_T-K)^+.
+\end{align*}
+\textbf{Gains form} ($c=0$): unroll the recursion. $B_{N-1}e^{r\Delta t}=V_0e^{rT}-\sum_k(\phi_k-\phi_{k-1})S_ke^{r(T-t_k)}$; summation by parts gives
+$\PnL=V_0e^{rT}+\sum_{k=0}^{N-1}\phi_k\big(S_{k+1}-S_ke^{r\Delta t}\big)e^{r(T-t_{k+1})}-(S_T-K)^+$.
+Interpretation: premium grown at $r$, plus the excess return of the stock over cash on each period's holding, minus the payoff. The code computes both forms and they agree to $10^{-13}$.
+
+\textbf{Costs are linear.} Delta ignores $c$, so the trades are identical for all $c$ and $\PnL(c)=\PnL(0)-c\,\mathrm{TV}$, where $\mathrm{TV}$ is the forward value of all traded notional.
+
+\subsection{Worked example (in \texttt{results/validation/manual\_ledger\_cost0.0.csv})}
+$K=100$, $T=0.25$, $r=5\%$, $\sigma=20\%$, $N=4$, path $100\to103\to98\to101\to104$. Premium $4.614997$.
+\begin{center}\small\begin{tabular}{rrrrrrrr}\toprule
+$k$ & $t$ & $S$ & $\Delta$ held & trade & cash for trade & interest & cash after\\\midrule
+0&0&100&0.569460&+0.569460&$-56.946018$&0&$-52.331021$\\
+1&0.0625&103&0.688948&+0.119488&$-12.307226$&$-0.163790$&$-64.802037$\\
+2&0.125&98&0.435666&$-0.253281$&+24.821577&$-0.202823$&$-40.183284$\\
+3&0.1875&101&0.612755&+0.177089&$-17.885941$&$-0.125769$&$-58.194993$\\
+4&0.25&104&0&$-0.612755$&+63.726513&$-0.182144$&$1.349376$\\\bottomrule
+\end{tabular}\end{center}
+At $k=4$ we also pay the payoff $4$: $-58.194993\,e^{0.05/16}+0.612755\times104-4=1.349376$. Check one line by hand:
+$-52.331021\times(e^{0.003125}-1)=-0.163790$. With $c=10$\,bp the P\&L is $1.172645$; the difference $0.176731$ is $0.001\times\mathrm{TV}$.
+\emph{Why positive?} On this path the stock moved less than $\sigma=20\%$ implies on several steps, so the short-gamma position gained. Another path could lose.
+
+\subsection{Why discrete hedging is not exact}
+Over $[t_k,t_{k+1}]$, Taylor-expand $C$: $\delta C\approx C_t\Delta t+\Delta\,\delta S+\tfrac12\Gamma(\delta S)^2$. The seller is short the option and long $\Delta$ shares financed at $r$.
+Using the PDE to eliminate $C_t$, the one-step P\&L is
+\[\epsilon_k\approx\tfrac12\Gamma_kS_k^2\Big[\sigma^2\Delta t-\big(\tfrac{\delta S_k}{S_k}\big)^2\Big]=\tfrac12\Gamma_kS_k^2\sigma^2\Delta t\,(1-Z_k^2).\]
+$\mathbb E[1-Z^2]=0$, so there is no bias, and $\operatorname{Var}(1-Z^2)=2$, so $\operatorname{Var}\epsilon_k=\tfrac12\Gamma_k^2S_k^4\sigma^4\Delta t^2$. The steps are uncorrelated, so the variances add:
+$\operatorname{Var}\PnL\approx\tfrac12\sigma^4\Delta t\,\mathbb E\!\int_0^T\Gamma^2S^4dt=O(1/N)$. In continuous time, $\sum(\delta S/S)^2\to\sigma^2T$ (quadratic variation), and every $\epsilon_k$ term vanishes.
+
+\textbf{Kamal--Derman.} For ATM, freeze $S\approx S_0$ and use $\Gamma_t\approx\Gamma_0\sqrt{T/(T-t)}$. Then $\sum_k\tfrac12(\Gamma_kS_k^2\sigma^2\Delta t)^2\approx\tfrac{\pi}{4}N(\Gamma_0S_0^2\sigma^2\Delta t)^2$, using $\int_0^T\frac{dt}{\sqrt{T^2-t^2}}=\pi/2$.
+With $\mathcal V=S_0^2\Gamma_0\sigma T$ this gives $\mathrm{sd}\approx\sqrt{\pi/4}\,\sigma\mathcal V/\sqrt N$. Base case: $\mathcal V=19.644$, so at $N=63$ the prediction is 0.4387 and the simulation gives 0.4341.
+
+\subsection{Wrong volatility}
+Price and hedge at $\sigma_h$. The same step, with $C_t$ eliminated using the PDE at $\sigma_h$, gives $\epsilon_k\approx\tfrac12\Gamma^h_kS_k^2[\sigma_h^2\Delta t-(\delta S/S)^2]$. Its mean is now
+$\tfrac12\Gamma^hS^2(\sigma_h^2-\sigma^2)\Delta t\neq0$. Summing and growing to $T$:
+$\PnL\approx\tfrac12\int_0^Te^{r(T-t)}\Gamma_h S^2(\sigma_h^2-\sigma^2)\,dt$. The sign depends only on $\sigma_h^2-\sigma^2$ because $\Gamma>0$ for a call. The \emph{size} is path-dependent
+(how long the path spends near the strike). That is why the sd does not go to 0 when $N\to\infty$.
+
+\subsection{Transaction costs and Leland}
+The expected traded shares per step are $\approx\Gamma S\cdot\mathbb E|\delta S|=\Gamma S^2\sigma\sqrt{\Delta t}\sqrt{2/\pi}$, so the cost per step is $\approx c\,\Gamma S^2\sigma\sqrt{2/\pi}\sqrt{\Delta t}$ and the total cost is $\propto c\sqrt N$.
+Leland writes this as an extra $\tfrac12\Gamma S^2\cdot\sigma^2\sqrt{2/\pi}\,k/(\sigma\sqrt{\Delta t})\,\Delta t$ with round-trip $k=2c$, which is the same as using
+$\sigma_L^2=\sigma^2(1+\sqrt{2/\pi}\,k/(\sigma\sqrt{\Delta t}))$. Our simulation shows the remaining mean loss under Leland ($0.12$ at 10\,bp) equals the initial-purchase plus liquidation cost ($0.121$). The model does not cover those trades.
+
+\section{Code map (equation $\rightarrow$ function)}
+\begin{tabular}{@{}ll@{}}\toprule
+Exact GBM step & \texttt{gbm.simulate\_gbm}\\
+$C,P,\Delta,\Gamma,\mathcal V$, $\tau=0$ cases & \texttt{black\_scholes.py}\\
+Bookkeeping $B_0,B_k,\PnL$; TV; costs & \texttt{hedge.hedge\_short\_call}\\
+Gains form (independent check) & \texttt{hedge.pnl\_gains\_form}\\
+Hand ledger & \texttt{hedge.hedge\_ledger}\\
+Gamma formula for wrong $\sigma$ & \texttt{hedge.predicted\_pnl\_misspecified}\\
+Leland $\sigma_L$ & \texttt{black\_scholes.leland\_sigma}\\
+Statistics and SEs & \texttt{stats.summarize}\\
+Experiments A--D / E & \texttt{experiments.py} / \texttt{realdata.py}\\\bottomrule
+\end{tabular}
+
+\noindent\textbf{Design choices you may be asked to justify.} \emph{Fine grid + subsampling}: every frequency uses the same Brownian path, so comparisons are paired (common random numbers).
+\emph{Batches of 5{,}000}: limit memory, and they also serve as 8 independent replications (slope SE). \emph{SeedSequence.spawn}: independent streams per experiment from one master seed.
+\emph{Delta-method SE for the sd}: $\mathrm{SE}(s)\approx\sqrt{(m_4-s^4)/n}/(2s)$ uses the sample fourth moment, so it remains valid for fat tails. \emph{Bootstrap} for quantiles and ES.
+
+\section{Key results to quote}
+\begin{itemize}
+\item A: sd 1.856 ($N=3$) $\to$ 0.434 ($N=63$, daily) $\to$ 0.098 ($N=1260$). Slope $-0.488\pm0.001$. Kamal--Derman within 1.4\% for $N\ge63$. Daily sd is 9.4\% of the premium 4.615.
+\item A, drift: sd 0.439/0.434/0.418 for $\mu=5/10/25\%$ at $N=63$. The effect is small but detectable (discrete-time only).
+\item B: means $-1.94,-0.98,0,+0.99,+1.98$ for $\sigma_h=10..30\%$ (theory identical to 2 dp). The bias does not shrink with $N$. If the premium is charged at the true $\sigma$, the mean is about 0.
+\item C: RMSE-optimal $N$ = 1260/252/126/63/21 for 0/5/10/20/50\,bp. Leland mean $-0.12$ at 10\,bp for all $N$, equal to the setup and unwind cost.
+\item D: ATM sd 0.32 vs 0.98 (15\% vs 45\% vol). OTM ($K=120$) sd/premium 254\% vs 30\%. Absolute sd flat in maturity.
+\item E: IBM 29\%, MSFT 34\%, GOOG 39\%, AAPL 55\%, AMZN 59\% (2000--10 monthly); AAPL 24\% (2015--17 daily). Backtest corr(P\&L, variance gap) = 0.87.
+\end{itemize}
+
+\section{Question bank with model answers}
+\begin{enumerate}[label=\textbf{Q\arabic*.},leftmargin=2.2em]
+\item \textbf{Why does the option price not depend on $\mu$?} The hedged portfolio is riskless, so it must earn $r$. $\mu$ cancels in $d\Pi$. Risk preferences are absorbed by replication.
+\item \textbf{Then why simulate under $\mathbb P$?} The P\&L is realised along real-world paths. In continuous time the result is $\mu$-independent. In discrete time $\mu$ has a small effect (sd falls 4.6\% from $\mu=5\%$ to $25\%$) because paths drift away from the strike, where gamma is lower.
+\item \textbf{Is the exact GBM step an approximation?} No. $\ln S$ increments are exactly normal, so any step size is exact in distribution. Validation: $E[S_T]$ and $\operatorname{Var}\ln S_T$ match theory with 1 step and with 252 steps.
+\item \textbf{What does self-financing mean in your code?} The only cash flows are the premium at 0, trades, costs, interest and the final payoff. Line \texttt{cash -= trade * S\_k} is exactly that.
+\item \textbf{Why is the P\&L at $T$ and not at 0?} So that all cash flows are in the same time-$T$ money. Discounting by $e^{-rT}$ (a factor of 0.988) changes nothing qualitatively.
+\item \textbf{Sign convention?} Positive means the seller gains.
+\item \textbf{Why does the mean error vanish but the sd does not?} Each step's error is $\propto(1-Z^2)$, which has mean 0 and variance 2.
+\item \textbf{Why $1/\sqrt N$?} There are $N$ independent errors, each of size $\propto\Delta t=T/N$, so the variance is $N\cdot(T/N)^2\propto1/N$.
+\item \textbf{Your slope is $-0.488$, not $-0.5$. Is your code wrong?} No. $-\tfrac12$ is the asymptotic slope. Coarse grids ($N=3,9$) are outside the asymptotic regime: the Kamal--Derman approximation overstates the sd by 8\% at $N=3$. The slope fitted on $N\ge63$ alone is $-0.497$.
+\item \textbf{Is every error statistic monotone in $N$?} Not necessarily, and $|$mean$|$ is not in our sample. We report monotonicity as an observation, not a theorem.
+\item \textbf{Why are the tails fat?} The error is a sum of $\Gamma$-weighted $(1-Z^2)$ terms, and the weights are random and large near the strike close to expiry. Paths that end near $K$ dominate the losses.
+\item \textbf{Why is $N=3$ slightly biased?} The second-order Taylor expansion fails for large moves, and higher-order terms do not average out. The bias is small ($-0.022\pm0.009$).
+\item \textbf{Why is over-estimating $\sigma$ good for the seller?} The seller collects a larger premium, and the gamma formula shows a positive expected P\&L whenever $\sigma_h>\sigma$ (El Karoui et al.\ 1998: a super-hedge if the hedge vol dominates).
+\item \textbf{If the premium is fair but the delta is wrong?} The mean is about 0, but the sd is unchanged and does not vanish as $N\to\infty$. The wrong delta adds risk, not expected loss.
+\item \textbf{Why do costs grow like $\sqrt N$?} The shares traded per step are $\propto\Gamma|\delta S|\propto\sqrt{\Delta t}$, and there are $N$ steps, so the total is $\propto N\sqrt{T/N}=\sqrt{NT}$.
+\item \textbf{Why is your Leland mean not zero?} Leland's correction prices only \emph{rebalancing} costs. We also charge the initial purchase and the final liquidation ($0.121$ at 10\,bp), which explains the residual exactly.
+\item \textbf{Why $k=2c$?} Leland defines $k$ as the round-trip cost. We charge $c$ per side.
+\item \textbf{Is RMSE the right objective?} It is one convention that combines bias and spread. A risk-averse seller might minimise mean + $\lambda\cdot$sd, or ES. The optimum would move.
+\item \textbf{How do you know your Monte Carlo is accurate enough?} Every statistic carries an SE. With 40{,}000 paths the sd at $N=63$ is $0.434\pm0.002$. Two independent seeds agree within 3 SE.
+\item \textbf{Why do OTM options have huge relative errors?} The premium is tiny (0.03), but if the stock reaches the strike, gamma becomes large. The absolute error is small, but relative to the premium it is large.
+\item \textbf{Why is the absolute error flat in maturity at fixed daily rebalancing?} $\mathrm{sd}\approx\sqrt{\pi/4}\,\sigma\mathcal V/\sqrt N$, with $\mathcal V\propto\sqrt T$ (ATM) and $N\propto T$, so $T$ cancels.
+\item \textbf{Is your real data `market data'?} It is secondary-source historical prices (vega-datasets and plotly/datasets mirrors). We used no option quotes. The premiums are model prices. The results are illustrations, not trading evidence.
+\item \textbf{Why are overlapping windows a problem?} Consecutive windows share 62 of 63 days, so the 380 windows are far from independent. Only 7 are non-overlapping.
+\item \textbf{Biggest limitation?} Constant volatility. Real volatility is stochastic and jumps exist, and then delta hedging alone cannot replicate the option.
+\item \textbf{What would you do next?} Stochastic volatility (Heston); hedging with the Whalley--Wilmott band instead of fixed-time rebalancing; using real option quotes; adding gamma hedging with a second option.
+\end{enumerate}
+
+\section{Honest limits of what the plots show}
+Fig.\,1 shows the error distribution only in the BS world. Fig.\,2b shows agreement with a continuous-time approximation, not proof of it. Fig.\,3's optimum depends on choosing RMSE.
+Fig.\,4 uses two stylised regimes, not calibrated assets. Fig.\,5 is one stock, two years, model premiums, and overlapping windows.
+\end{document}
